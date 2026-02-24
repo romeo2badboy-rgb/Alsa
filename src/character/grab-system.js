@@ -118,6 +118,18 @@ export class GrabSystem {
     console.info(`[GrabSystem] ${key} released '${grab.boneName}'`);
   }
 
+  /**
+   * Hot-swap the active hand tracking source (WebXR ↔ MediaPipe camera).
+   * Wires this grab system's pinch callbacks onto the new source and uses
+   * it for position queries during update().
+   * @param {import('../xr/hand-tracking').HandTracking | import('../xr/mediapipe-hands').MediaPipeHands} source
+   */
+  setHandSource(source) {
+    source.onPinchStart = (key, pos) => this._onPinchStart(key, pos);
+    source.onPinchEnd   = (key)      => this._onPinchEnd(key);
+    this.handTracking   = source;
+  }
+
   dispose() {
     for (const key of [...this._grabs.keys()]) this._onPinchEnd(key);
   }
