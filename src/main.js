@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 
 import { PhysicsWorld }    from './physics/physics-world.js';
 import { XRSession }       from './xr/xr-session.js';
@@ -19,6 +20,10 @@ import { DebugPanel }      from './debug/debug-panel.js';
 import { DebugVisuals }    from './debug/debug-visuals.js';
 import { copyDebugData }   from './debug/debug-copy.js';
 import { COLORS }          from './utils/constants.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Initialize Vercel Speed Insights
+injectSpeedInsights();
 
 // ─────────────────────────────────────────────────────────────────────────────
 
