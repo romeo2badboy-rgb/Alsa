@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>ALFA — VR Interactive Character</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        background: #808080;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: #fff;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      /* ── Overlay — forwarded into VR via DOM Overlay API ── */
+      #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 100;
+      }
+
+      /* ── Debug panel ── */
+      #debug-panel {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.78);
+        color: #00ff88;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 11px;
+        padding: 10px 14px;
+        border-radius: 6px;
+        border: 1px solid rgba(0, 255, 136, 0.25);
+        line-height: 1.75;
+        min-width: 230px;
+        max-width: 310px;
+        pointer-events: none;
+        user-select: none;
+      }
+
+      /* ── Loading screen ── */
+      #loading {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 600;
+        gap: 18px;
+        display: none;
+      }
+
+      #loading .spinner {
+        width: 42px;
+        height: 42px;
+        border: 3px solid rgba(255, 255, 255, 0.15);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+
+      #loading-text {
+        font-size: 14px;
+        opacity: 0.85;
+        letter-spacing: 0.03em;
+      }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── Instructions card ── */
+      #instructions {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(15, 15, 20, 0.92);
+        padding: 28px 36px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        text-align: center;
+        max-width: 420px;
+        width: calc(100% - 40px);
+        z-index: 400;
+        display: none;
+        line-height: 1.6;
+      }
+
+      #instructions h2 { margin-bottom: 12px; font-size: 16px; color: #ffd; }
+      #instructions p  { margin: 6px 0; font-size: 13px; opacity: 0.85; }
+      #instructions code {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 7px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      #instructions a { color: #7ac0ff; }
+
+      /* ── Model loader widget ── */
+      #model-loader {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        background: rgba(0, 0, 0, 0.72);
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 200px;
+        pointer-events: all;
+      }
+
+      #model-loader label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.55;
+      }
+
+      #model-url-input {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        color: #fff;
+        padding: 5px 9px;
+        border-radius: 5px;
+        font-size: 12px;
+        width: 100%;
+        outline: none;
+      }
+
+      #model-url-input::placeholder { opacity: 0.35; }
+      #model-url-input:focus { border-color: rgba(255, 255, 255, 0.5); }
+
+      /* ── Control bar ── */
+      #controls {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        pointer-events: all;
+        z-index: 200;
+      }
+
+      /* ── Buttons ── */
+      button {
+        background: rgba(0, 0, 0, 0.68);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 8px 16px;
+        border-radius: 7px;
+        cursor: pointer;
+        font-size: 12px;
+        font-family: inherit;
+        letter-spacing: 0.02em;
+        transition: background 0.18s, border-color 0.18s;
+        white-space: nowrap;
+        user-select: none;
+      }
+
+      button:hover  { background: rgba(60, 60, 70, 0.88); border-color: rgba(255, 255, 255, 0.5); }
+      button:active { background: rgba(80, 80, 100, 0.9); }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+      #vr-button {
+        background: rgba(40, 80, 200, 0.82);
+        border-color: rgba(100, 150, 255, 0.55);
+        font-size: 14px;
+        font-weight: 600;
+        padding: 10px 26px;
+      }
+      #vr-button:hover { background: rgba(60, 100, 220, 0.9); }
+
+      /* ── Debug toggle button active state ── */
+      button.active {
+        background: rgba(0, 180, 100, 0.25);
+        border-color: rgba(0, 255, 136, 0.55);
+        color: #00ff88;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Main 3-D canvas -->
+    <canvas id="canvas"></canvas>
+
+    <!-- Overlay — this div is shown in VR via the DOM Overlay API -->
+    <div id="overlay">
+      <div id="debug-panel">Initializing…</div>
+    </div>
+
+    <!-- Full-screen loading indicator -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <div id="loading-text">Loading…</div>
+    </div>
+
+    <!-- Instructions shown when no model is found -->
+    <div id="instructions">
+      <h2>No VRM Model Found</h2>
+      <p>
+        Place a <code>.vrm</code> file at<br />
+        <code>public/models/character.vrm</code>
+      </p>
+      <p style="margin-top:10px;">
+        Free models:
+        <a href="https://github.com/test157t/VRM-Assets-Pack-For-Silly-Tavern" target="_blank" rel="noopener">
+          VRM-Assets-Pack
+        </a>
+      </p>
+      <p style="margin-top:8px;">
+        Or paste a direct URL below and click <b>Load</b>.
+      </p>
+      <button style="margin-top:14px;" onclick="document.getElementById('instructions').style.display='none'">
+        ✕ Close
+      </button>
+    </div>
+
+    <!-- Model URL loader (top-right corner) -->
+    <div id="model-loader">
+      <label>VRM Model URL</label>
+      <input
+        id="model-url-input"
+        type="text"
+        placeholder="/models/character.vrm"
+        value="/models/character.vrm"
+      />
+      <button id="model-load-btn">Load Model</button>
+    </div>
+
+    <!-- Main control bar (bottom) -->
+    <div id="controls">
+      <button id="vr-button">Enter VR</button>
+      <button id="btn-toggle-debug"   title="Toggle debug overlay">Debug</button>
+      <button id="btn-toggle-colliders" title="Toggle collider wireframes">Colliders</button>
+      <button id="btn-toggle-skeleton"  title="Toggle skeleton helper">Skeleton</button>
+      <button id="btn-copy-debug"       title="Copy debug data to clipboard">Copy Debug</button>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
